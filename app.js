@@ -521,7 +521,7 @@ async function iniciarFlujo() {
       "Acepta el permiso de ubicación del teléfono."
     );
 
-    ubicacionActual = await pedirUbicacion();
+    
 
     const distancia = calcularDistanciaMetros(
       ubicacionActual.lat,
@@ -567,7 +567,47 @@ async function iniciarFlujo() {
 
 /* ================= EVENTOS ================= */
 
-btnIniciar.addEventListener("click", iniciarFlujo);
+btnIniciar.addEventListener("click", async () => {
+
+  btnIniciar.disabled = true;
+  btnIniciar.textContent = "Activando sistema...";
+
+  try {
+
+    // 🔥 1. FORZAR PERMISO CÁMARA
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(t => t.stop());
+
+    // 🔥 2. PEDIR GPS UNA SOLA VEZ
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true
+      });
+    });
+
+    ubicacionActual = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      precision: pos.coords.accuracy
+    };
+
+    // 🔥 3. CONTINUAR
+    await iniciarFlujo();
+
+  } catch (error) {
+
+    btnIniciar.disabled = false;
+    btnIniciar.textContent = "Reintentar";
+
+    setEstado(
+      "error",
+      "🚫",
+      "Permisos bloqueados",
+      "Debes activar cámara y ubicación en el navegador."
+    );
+  }
+
+});
 
 btnAbrirCamara.addEventListener("click", async () => {
   try {
