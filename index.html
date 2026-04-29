@@ -1,35 +1,84 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<title>Control Policial</title>
+  <title>Control Policial QR</title>
 
-<link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css" />
 
-<!-- Firebase -->
-<script type="module" src="app.js"></script>
-
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script type="module" src="app.js"></script>
 </head>
 
 <body>
+  <main class="app">
 
-<div class="container">
+    <section class="card header-card">
+      <div class="badge">CONTROL POLICIAL</div>
+      <h1 id="tituloPunto">Validando punto...</h1>
+      <p id="subtitulo">Verificando ubicación del dispositivo.</p>
+    </section>
 
-    <h1>CONTROL POLICIAL</h1>
+    <section class="card status-card" id="estadoCard">
+      <div id="estadoIcon">⏳</div>
+      <h2 id="estadoTitulo">Validando ubicación</h2>
+      <p id="estadoTexto">Permite el acceso a tu ubicación para continuar.</p>
+    </section>
 
-    <div id="estado" class="estado">
-        Verificando ubicación...
-    </div>
+    <section class="card hidden" id="scannerSection">
+      <h2>Escanear QR del policía</h2>
+      <p class="muted">Formato: DNI, NOMBRE, CARGO</p>
+      <div id="qr-reader"></div>
+    </section>
 
-    <!-- BLOQUE SCANNER -->
-    <div id="scannerContainer" class="hidden">
-        <video id="preview"></video>
-        <p>Escanea tu QR personal</p>
-    </div>
+    <section class="card hidden" id="confirmSection">
+      <h2>Datos identificados</h2>
 
-</div>
+      <div class="info-grid">
+        <div>
+          <span>DNI</span>
+          <strong id="dniText">-</strong>
+        </div>
+        <div>
+          <span>Nombre</span>
+          <strong id="nombreText">-</strong>
+        </div>
+        <div>
+          <span>Cargo</span>
+          <strong id="cargoText">-</strong>
+        </div>
+        <div>
+          <span>Mensaje</span>
+          <strong>Tarde</strong>
+        </div>
+      </div>
 
+      <button id="btnAbrirCamara" class="btn primary">
+        Abrir cámara frontal
+      </button>
+    </section>
+
+    <section class="card hidden" id="fotoSection">
+      <h2>Tomar foto de evidencia</h2>
+      <p class="muted">La foto se guardará con fecha, hora, ubicación y dirección.</p>
+
+      <video id="videoFoto" autoplay playsinline muted></video>
+      <canvas id="canvasFoto" class="hidden"></canvas>
+
+      <button id="btnTomarFoto" class="btn primary">
+        Tomar foto y guardar
+      </button>
+    </section>
+
+    <section class="card hidden" id="resultadoSection">
+      <div class="success-icon">✓</div>
+      <h2>Registro guardado</h2>
+      <p>El control fue registrado correctamente.</p>
+      <img id="previewFoto" alt="Foto registrada" />
+    </section>
+
+  </main>
 </body>
 </html>
