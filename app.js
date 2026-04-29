@@ -34,7 +34,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-/* ================= PUNTOS FIJOS ================= */
+/* ================= PUNTO FIJO ================= */
 
 const PUNTOS_CONTROL = {
   PARQUE_LA_PERA: {
@@ -42,48 +42,57 @@ const PUNTOS_CONTROL = {
     nombre: "Parque La Pera",
     lat: -12.106910,
     lng: -77.055361,
-    direccion: "Parque La Pera",
+    direccionReferencia: "Parque La Pera",
     radioMetros: 100
   }
 };
 
-/* ================= ESTADO GLOBAL ================= */
+/* ================= VARIABLES ================= */
 
 let puntoActual = null;
 let ubicacionActual = null;
 let direccionActual = "Dirección no disponible";
 let datosPolicia = null;
-let qrScanner = null;
+let scanner = null;
 let streamFoto = null;
 let horaServidor = null;
 
-/* ================= ELEMENTOS ================= */
+/* ================= HTML ================= */
 
 const tituloPunto = document.getElementById("tituloPunto");
-const subtitulo = document.getElementById("subtitulo");
+const subtituloPunto = document.getElementById("subtituloPunto");
 
 const estadoCard = document.getElementById("estadoCard");
 const estadoIcon = document.getElementById("estadoIcon");
 const estadoTitulo = document.getElementById("estadoTitulo");
 const estadoTexto = document.getElementById("estadoTexto");
 
+const btnIniciar = document.getElementById("btnIniciar");
+const btnAbrirCamara = document.getElementById("btnAbrirCamara");
+const btnTomarFoto = document.getElementById("btnTomarFoto");
+
 const scannerSection = document.getElementById("scannerSection");
-const confirmSection = document.getElementById("confirmSection");
+const datosSection = document.getElementById("datosSection");
 const fotoSection = document.getElementById("fotoSection");
-const resultadoSection = document.getElementById("resultadoSection");
+const finalSection = document.getElementById("finalSection");
 
 const dniText = document.getElementById("dniText");
 const nombreText = document.getElementById("nombreText");
 const cargoText = document.getElementById("cargoText");
 
-const btnAbrirCamara = document.getElementById("btnAbrirCamara");
-const btnTomarFoto = document.getElementById("btnTomarFoto");
-
 const videoFoto = document.getElementById("videoFoto");
 const canvasFoto = document.getElementById("canvasFoto");
 const previewFoto = document.getElementById("previewFoto");
 
-/* ================= UTILIDADES ================= */
+/* ================= UI ================= */
+
+function mostrar(el) {
+  el.classList.remove("hidden");
+}
+
+function ocultar(el) {
+  el.classList.add("hidden");
+}
 
 function setEstado(tipo, icono, titulo, texto) {
   estadoCard.classList.remove("status-ok", "status-error", "status-warning");
@@ -97,27 +106,21 @@ function setEstado(tipo, icono, titulo, texto) {
   estadoTexto.textContent = texto;
 }
 
-function mostrar(section) {
-  section.classList.remove("hidden");
-}
-
-function ocultar(section) {
-  section.classList.add("hidden");
-}
+/* ================= FECHA / TURNO ================= */
 
 function pad(n) {
   return String(n).padStart(2, "0");
 }
 
-function formatoFechaDoc(fecha) {
+function fechaDoc(fecha) {
   return `${pad(fecha.getDate())}-${pad(fecha.getMonth() + 1)}-${fecha.getFullYear()}`;
 }
 
-function formatoFechaVista(fecha) {
+function fechaVista(fecha) {
   return `${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)}/${fecha.getFullYear()}`;
 }
 
-function formatoHoraVista(fecha) {
+function horaVista(fecha) {
   return `${pad(fecha.getHours())}:${pad(fecha.getMinutes())}:${pad(fecha.getSeconds())}`;
 }
 
@@ -128,9 +131,7 @@ function turnoOperativo(fecha) {
     return {
       turno: "T1",
       nombre: "PRIMER TURNO",
-      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()),
-      inicio: "07:00",
-      fin: "15:00"
+      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate())
     };
   }
 
@@ -138,9 +139,7 @@ function turnoOperativo(fecha) {
     return {
       turno: "T2",
       nombre: "SEGUNDO TURNO",
-      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()),
-      inicio: "15:00",
-      fin: "23:00"
+      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate())
     };
   }
 
@@ -148,59 +147,71 @@ function turnoOperativo(fecha) {
     return {
       turno: "T3",
       nombre: "TERCER TURNO",
-      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()),
-      inicio: "23:00",
-      fin: "07:00"
+      fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate())
     };
   }
-
-  const ayer = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() - 1);
 
   return {
     turno: "T3",
     nombre: "TERCER TURNO",
-    fechaTurno: ayer,
-    inicio: "23:00",
-    fin: "07:00"
+    fechaTurno: new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate() - 1)
   };
 }
 
+/* ================= DISTANCIA ================= */
+
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
-  const phi1 = lat1 * Math.PI / 180;
-  const phi2 = lat2 * Math.PI / 180;
-  const dPhi = (lat2 - lat1) * Math.PI / 180;
-  const dLambda = (lon2 - lon1) * Math.PI / 180;
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lon2 - lon1) * Math.PI / 180;
 
   const a =
-    Math.sin(dPhi / 2) ** 2 +
-    Math.cos(phi1) * Math.cos(phi2) *
-    Math.sin(dLambda / 2) ** 2;
+    Math.sin(dp / 2) ** 2 +
+    Math.cos(p1) * Math.cos(p2) *
+    Math.sin(dl / 2) ** 2;
 
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/* ================= UBICACIÓN ================= */
+/* ================= GPS ================= */
 
-function obtenerUbicacionGPS() {
+function pedirUbicacion() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error("Este teléfono no soporta geolocalización."));
+      reject(new Error("Este navegador no soporta ubicación GPS."));
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      pos => {
         resolve({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           precision: pos.coords.accuracy
         });
       },
-      (err) => reject(err),
+      error => {
+        let msg = "No se pudo obtener la ubicación.";
+
+        if (error.code === 1) {
+          msg = "Permiso de ubicación denegado. Actívalo en los permisos del navegador.";
+        }
+
+        if (error.code === 2) {
+          msg = "Ubicación no disponible. Activa el GPS del teléfono.";
+        }
+
+        if (error.code === 3) {
+          msg = "Tiempo agotado obteniendo ubicación. Intenta nuevamente al aire libre.";
+        }
+
+        reject(new Error(msg));
+      },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
+        timeout: 20000,
         maximumAge: 0
       }
     );
@@ -212,22 +223,21 @@ async function obtenerDireccion(lat, lng) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
     const res = await fetch(url);
     const data = await res.json();
-
     return data.display_name || "Dirección no disponible";
   } catch (_) {
     return "Dirección no disponible";
   }
 }
 
-/* ================= HORA SERVIDOR FIREBASE ================= */
+/* ================= HORA SERVIDOR ================= */
 
 async function obtenerHoraServidor() {
-  const refTemp = await addDoc(collection(db, "_server_time_requests"), {
+  const tempRef = await addDoc(collection(db, "_server_time_requests"), {
     created_at: serverTimestamp()
   });
 
   for (let i = 0; i < 10; i++) {
-    const snap = await getDoc(refTemp);
+    const snap = await getDoc(tempRef);
 
     if (snap.exists() && snap.data().created_at) {
       return snap.data().created_at.toDate();
@@ -239,13 +249,13 @@ async function obtenerHoraServidor() {
   throw new Error("No se pudo obtener hora del servidor.");
 }
 
-/* ================= QR DEL POLICÍA ================= */
+/* ================= QR POLICÍA ================= */
 
 function parsearQrPolicia(raw) {
-  const partes = raw.split(",").map(x => x.trim()).filter(Boolean);
+  const partes = raw.split(",").map(v => v.trim()).filter(Boolean);
 
   if (partes.length < 3) {
-    throw new Error("QR inválido. Debe tener: DNI, NOMBRE, CARGO");
+    throw new Error("QR inválido. Debe ser: DNI, NOMBRE, CARGO");
   }
 
   const dni = partes[0];
@@ -253,7 +263,7 @@ function parsearQrPolicia(raw) {
   const cargo = partes.slice(2).join(", ");
 
   if (!/^\d{8}$/.test(dni)) {
-    throw new Error("DNI inválido.");
+    throw new Error("El DNI debe tener 8 dígitos.");
   }
 
   return { dni, nombre, cargo };
@@ -262,34 +272,34 @@ function parsearQrPolicia(raw) {
 async function iniciarScannerPolicia() {
   mostrar(scannerSection);
 
-  qrScanner = new Html5Qrcode("qr-reader");
+  scanner = new Html5Qrcode("qr-reader");
 
-  await qrScanner.start(
+  await scanner.start(
     { facingMode: "environment" },
     {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1
     },
-    async (decodedText) => {
+    async decodedText => {
       try {
         datosPolicia = parsearQrPolicia(decodedText);
 
-        await qrScanner.stop();
-        qrScanner.clear();
+        await scanner.stop();
+        scanner.clear();
 
         dniText.textContent = datosPolicia.dni;
         nombreText.textContent = datosPolicia.nombre;
         cargoText.textContent = datosPolicia.cargo;
 
         ocultar(scannerSection);
-        mostrar(confirmSection);
+        mostrar(datosSection);
 
         setEstado(
           "ok",
           "✅",
           "QR del policía validado",
-          "Ahora tome la foto de evidencia con la cámara frontal."
+          "Ahora active la cámara frontal para tomar la foto."
         );
       } catch (error) {
         setEstado("error", "❌", "QR inválido", error.message);
@@ -298,12 +308,9 @@ async function iniciarScannerPolicia() {
   );
 }
 
-/* ================= CÁMARA FRONTAL Y FOTO ================= */
+/* ================= CÁMARA FRONTAL ================= */
 
 async function abrirCamaraFrontal() {
-  ocultar(confirmSection);
-  mostrar(fotoSection);
-
   streamFoto = await navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: "user",
@@ -314,13 +321,46 @@ async function abrirCamaraFrontal() {
   });
 
   videoFoto.srcObject = streamFoto;
+
+  ocultar(datosSection);
+  mostrar(fotoSection);
+
+  setEstado(
+    "warning",
+    "📷",
+    "Foto requerida",
+    "Centre el rostro y presione tomar foto."
+  );
 }
 
-function detenerCamaraFrontal() {
-  if (!streamFoto) return;
+function detenerCamara() {
+  if (streamFoto) {
+    streamFoto.getTracks().forEach(track => track.stop());
+    streamFoto = null;
+  }
+}
 
-  streamFoto.getTracks().forEach(track => track.stop());
-  streamFoto = null;
+/* ================= FOTO QUEMADA ================= */
+
+function dibujarTexto(ctx, texto, x, y, maxWidth, lineHeight) {
+  const palabras = texto.split(" ");
+  let linea = "";
+
+  for (let i = 0; i < palabras.length; i++) {
+    const prueba = linea + palabras[i] + " ";
+    const medida = ctx.measureText(prueba).width;
+
+    if (medida > maxWidth && i > 0) {
+      ctx.fillText(linea, x, y);
+      linea = palabras[i] + " ";
+      y += lineHeight;
+    } else {
+      linea = prueba;
+    }
+  }
+
+  ctx.fillText(linea, x, y);
+  return y + lineHeight;
 }
 
 async function tomarFotoQuemada() {
@@ -331,88 +371,75 @@ async function tomarFotoQuemada() {
   canvasFoto.height = h;
 
   const ctx = canvasFoto.getContext("2d");
-
   ctx.drawImage(videoFoto, 0, 0, w, h);
-
-  const fecha = formatoFechaVista(horaServidor);
-  const hora = formatoHoraVista(horaServidor);
 
   const lineas = [
     `PUNTO: ${puntoActual.nombre}`,
     `DNI: ${datosPolicia.dni}`,
     `NOMBRE: ${datosPolicia.nombre}`,
     `CARGO: ${datosPolicia.cargo}`,
-    `FECHA: ${fecha}`,
-    `HORA: ${hora}`,
+    `FECHA: ${fechaVista(horaServidor)}`,
+    `HORA: ${horaVista(horaServidor)}`,
     `LAT: ${ubicacionActual.lat.toFixed(6)}`,
     `LNG: ${ubicacionActual.lng.toFixed(6)}`,
-    `DIR: ${direccionActual}`
+    `DIRECCIÓN: ${direccionActual}`
   ];
 
-  const padding = 18;
   const fontSize = Math.max(18, Math.floor(w * 0.018));
   const lineHeight = fontSize + 8;
-  const boxHeight = lineas.length * lineHeight + padding * 2;
+  const padding = 18;
+  const boxHeight = Math.min(h * 0.48, lineas.length * lineHeight + padding * 3);
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.68)";
+  ctx.fillStyle = "rgba(0,0,0,0.72)";
   ctx.fillRect(0, h - boxHeight, w, boxHeight);
 
   ctx.fillStyle = "#ffffff";
   ctx.font = `700 ${fontSize}px Arial`;
   ctx.textBaseline = "top";
 
-  lineas.forEach((linea, i) => {
-    const y = h - boxHeight + padding + i * lineHeight;
-    ctx.fillText(linea, padding, y, w - padding * 2);
-  });
+  let y = h - boxHeight + padding;
 
-  return new Promise((resolve) => {
-    canvasFoto.toBlob(
-      (blob) => resolve(blob),
-      "image/jpeg",
-      0.88
-    );
+  for (const linea of lineas) {
+    y = dibujarTexto(ctx, linea, padding, y, w - padding * 2, lineHeight);
+  }
+
+  return new Promise(resolve => {
+    canvasFoto.toBlob(blob => resolve(blob), "image/jpeg", 0.88);
   });
 }
 
-/* ================= GUARDADO FIREBASE ================= */
+/* ================= GUARDAR ================= */
 
 async function subirFoto(blob, ruta) {
-  const storageRef = ref(storage, ruta);
-  await uploadBytes(storageRef, blob, {
+  const fotoRef = ref(storage, ruta);
+
+  await uploadBytes(fotoRef, blob, {
     contentType: "image/jpeg"
   });
 
-  return await getDownloadURL(storageRef);
+  return await getDownloadURL(fotoRef);
 }
 
 async function guardarRegistro() {
-  if (!datosPolicia || !ubicacionActual || !puntoActual) {
-    throw new Error("Faltan datos para guardar.");
-  }
-
   btnTomarFoto.disabled = true;
   btnTomarFoto.textContent = "Guardando...";
 
-  setEstado("warning", "⏳", "Guardando registro", "No cierre esta ventana.");
+  setEstado("warning", "⏳", "Guardando", "No cierre esta ventana.");
 
   horaServidor = await obtenerHoraServidor();
 
   const turno = turnoOperativo(horaServidor);
-  const fechaDoc = formatoFechaDoc(turno.fechaTurno);
-  const fechaVista = formatoFechaVista(horaServidor);
-  const horaVista = formatoHoraVista(horaServidor);
-
-  const fotoBlob = await tomarFotoQuemada();
+  const fechaDocumento = fechaDoc(turno.fechaTurno);
 
   const docId = `${datosPolicia.dni}_TARDE_${turno.turno}_${horaServidor.getTime()}`;
 
-  const rutaFoto = `policia_convenio_fotos/${fechaDoc}/${turno.turno}/${docId}.jpg`;
+  const blobFoto = await tomarFotoQuemada();
 
-  const fotoUrl = await subirFoto(fotoBlob, rutaFoto);
+  const rutaFoto = `policia_convenio_fotos/${fechaDocumento}/${turno.turno}/${docId}.jpg`;
+  const fotoUrl = await subirFoto(blobFoto, rutaFoto);
 
   await setDoc(
-    doc(db, "policia_convenio", fechaDoc, turno.turno, docId),
+    doc(db, "policia_convenio", fechaDocumento, turno.turno, docId),
     {
       dni: datosPolicia.dni,
       nombre: datosPolicia.nombre,
@@ -424,10 +451,10 @@ async function guardarRegistro() {
 
       turno: turno.turno,
       turno_nombre: turno.nombre,
-      fecha_turno: formatoFechaVista(turno.fechaTurno),
+      fecha_turno: fechaVista(turno.fechaTurno),
 
-      fecha_registro: fechaVista,
-      hora: horaVista,
+      fecha_registro: fechaVista(horaServidor),
+      hora: horaVista(horaServidor),
 
       lat: ubicacionActual.lat,
       lng: ubicacionActual.lng,
@@ -449,28 +476,31 @@ async function guardarRegistro() {
       timestamp_foto_referencial: Timestamp.fromDate(horaServidor),
 
       estado: "REGISTRADO",
-      origen: "WEB_QR_PUNTO"
+      origen: "WEB_QR_LOCAL"
     }
   );
 
-  detenerCamaraFrontal();
+  detenerCamara();
 
-  previewFoto.src = URL.createObjectURL(fotoBlob);
+  previewFoto.src = URL.createObjectURL(blobFoto);
 
   ocultar(fotoSection);
-  mostrar(resultadoSection);
+  mostrar(finalSection);
 
   setEstado(
     "ok",
     "✅",
     "Registro completado",
-    "La asistencia tardía fue guardada correctamente."
+    "La información fue guardada correctamente."
   );
 }
 
-/* ================= INICIO ================= */
+/* ================= FLUJO PRINCIPAL ================= */
 
-async function iniciar() {
+async function iniciarFlujo() {
+  btnIniciar.disabled = true;
+  btnIniciar.textContent = "Validando...";
+
   try {
     const params = new URLSearchParams(window.location.search);
     const puntoId = params.get("punto") || "PARQUE_LA_PERA";
@@ -478,21 +508,20 @@ async function iniciar() {
     puntoActual = PUNTOS_CONTROL[puntoId];
 
     if (!puntoActual) {
-      setEstado("error", "❌", "Punto no reconocido", "El QR del local no pertenece a un punto registrado.");
-      return;
+      throw new Error("El QR del local no corresponde a un punto registrado.");
     }
 
     tituloPunto.textContent = puntoActual.nombre;
-    subtitulo.textContent = `Radio permitido: ${puntoActual.radioMetros} metros.`;
+    subtituloPunto.textContent = `Radio permitido: ${puntoActual.radioMetros} metros.`;
 
     setEstado(
       "warning",
       "📍",
-      "Validando ubicación",
-      "Permita el acceso GPS para comprobar que está en el punto correcto."
+      "Validando GPS",
+      "Acepta el permiso de ubicación del teléfono."
     );
 
-    ubicacionActual = await obtenerUbicacionGPS();
+    ubicacionActual = await pedirUbicacion();
 
     const distancia = calcularDistanciaMetros(
       ubicacionActual.lat,
@@ -502,19 +531,17 @@ async function iniciar() {
     );
 
     if (distancia > puntoActual.radioMetros) {
-      setEstado(
-        "error",
-        "🚫",
-        "Fuera del rango permitido",
-        `Usted está aproximadamente a ${Math.round(distancia)} metros del punto. Debe estar dentro de ${puntoActual.radioMetros} metros.`
+      throw new Error(
+        `Fuera del rango permitido. Distancia aproximada: ${Math.round(distancia)} metros.`
       );
-      return;
     }
 
     direccionActual = await obtenerDireccion(
       ubicacionActual.lat,
       ubicacionActual.lng
     );
+
+    ocultar(btnIniciar);
 
     setEstado(
       "ok",
@@ -526,22 +553,32 @@ async function iniciar() {
     await iniciarScannerPolicia();
 
   } catch (error) {
+    btnIniciar.disabled = false;
+    btnIniciar.textContent = "Intentar nuevamente";
+
     setEstado(
       "error",
       "❌",
       "No se pudo continuar",
-      error.message || "Revise permisos de cámara, GPS e internet."
+      error.message || "Revise permisos de ubicación, cámara e internet."
     );
   }
 }
 
 /* ================= EVENTOS ================= */
 
+btnIniciar.addEventListener("click", iniciarFlujo);
+
 btnAbrirCamara.addEventListener("click", async () => {
   try {
     await abrirCamaraFrontal();
   } catch (_) {
-    setEstado("error", "❌", "Error de cámara", "No se pudo abrir la cámara frontal.");
+    setEstado(
+      "error",
+      "❌",
+      "Cámara bloqueada",
+      "Permite el acceso a la cámara desde el navegador."
+    );
   }
 });
 
@@ -556,19 +593,17 @@ btnTomarFoto.addEventListener("click", async () => {
       "error",
       "❌",
       "Error al guardar",
-      error.message || "No se pudo registrar la información."
+      error.message || "No se pudo guardar el registro."
     );
   }
 });
 
 window.addEventListener("beforeunload", () => {
-  detenerCamaraFrontal();
+  detenerCamara();
 
-  if (qrScanner) {
+  if (scanner) {
     try {
-      qrScanner.stop();
+      scanner.stop();
     } catch (_) {}
   }
 });
-
-iniciar();
